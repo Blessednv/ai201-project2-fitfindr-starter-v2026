@@ -59,24 +59,24 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** It searches the clothing database for items that match the keywords, size, and maximum budget the user asks for.
+- **Inputs:** description (str), size (str or None), and max_price (float or None). To match a size, the code splits the listing's size by spaces or slashes and checks for an exact match, so "M" matches "S/M" but not "US 9".
+- **Returns:** A list of listing dictionaries, where each dictionary contains the fields: id, title, description, category, style_tags, size, condition, price, colors, brand, and platform.
+- **When it has nothing:** It returns an empty list (`[]`).
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** It takes the thrifted item that was just found and suggests one or two outfit combinations using clothes the user already owns.
+- **Inputs:** `new_item` (dict) — a listing dict for the item being considered. `wardrobe` (dict) — has an `'items'` key holding a list of wardrobe item dicts; this list may be empty.
+- **Returns:** A non-empty string containing one or two AI-generated outfit suggestions.
+- **When it has nothing:** If the user's wardrobe dictionary is empty, it returns general styling advice for the new piece instead of crashing or returning a blank string.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** It writes a short, two-to-four sentence social media caption that mentions the item, its price, its platform, and the outfit's vibe.
+- **Inputs:** `outfit` (str) — the outfit suggestion string from `suggest_outfit()`. `new_item` (dict) — the listing dict for the item, with fields like title, price, and platform.
+- **Returns:** A string (str) containing the generated caption.
+- **When it has nothing:** If the outfit string is completely empty or just blank spaces, it returns a descriptive message instead of crashing.
 
 ---
 
@@ -93,7 +93,7 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If search_listings returns an empty list, put a message in the session saying "No listings matched — try a different description, size, or price," and stop. Otherwise, take the first result and go to suggest_outfit.
 
 **Where it lives:** `agent.py::run_agent`
 
