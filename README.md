@@ -97,9 +97,9 @@
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Regex (no model call), in `agent.py::_parse_query`. It looks for a price after "under", "below", "less than", "max", "up to" or a bare "$30"; for a size after the word "size" (XXS to XXXL, "US 9", or "W30"); and treats whatever is left, minus filler words like "looking for", as the description. A part that is missing comes back as `None` and is simply not filtered on.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** In order: `query` (what the user typed) → `parsed` (description, size, max_price) → `search_results` (everything `search_listings` returned) → `selected_item` (the first result) → `outfit_suggestion` (from `suggest_outfit`) → `fit_card` (from `create_fit_card`). `error` stays `None` unless the search comes back empty, in which case it holds the message and the later fields stay `None`. Each tool reads its inputs back out of the session, never straight from the previous call. The loop checks the session each time round and does the next missing step, and calls `trace.check_iterations` first.
 
 ---
 
@@ -113,8 +113,34 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30, size M'
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
 
+  Outfit:   That Y2K Butterfly Tee is so cute! Here are two fun ways to style it using pieces already in your closet:
+
+**Outfit 1: Effortless Casual**
+*   Baggy straight-leg jeans, dark wash
+*   Chunky white sneakers
+*   Black crossbody bag
+
+**Outfit 2: Edgy Contrast**
+*   Wide-leg khaki trousers
+*   Black cropped zip hoodie
+*   Black combat boots 
+*   Brown leather belt
+
+  Fit card: Just scored the ultimate Y2K butterfly tee on depop for only $18 and I’m literally obsessed. The print is giving major 2000s mall goth energy, and I already have five different outfits planned out in my head. Can't wait to style this little beauty!
+
+2 model calls this session, 457 prompt + 160 output tokens
+```
+
+And the query that matches nothing, which stops before the outfit and fit card (no model calls):
+
+```
+$ python agent.py     # second example
+=== A query it can't ===
+  stopped: Nothing matched 'designer ballgown', size XXS, under $5. Try a more general description (for example 'tee' instead of a very specific style), a different size, or a higher price limit.
+  fit_card is None — it should still be None here
 ```
 
 **The three tools, tested one at a time**
