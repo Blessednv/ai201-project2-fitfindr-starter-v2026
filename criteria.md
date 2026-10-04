@@ -21,7 +21,8 @@ data earns credit; *"80% seemed reasonable"* does not.
 
 ## 1. A matching query completes all three tools
 
-Given a query that matches at least one listing, the agent completes all three
+Given a query that matches at least one listing (for example "vintage graphic
+tee under $30"), the agent completes all three
 tool calls and returns a fit card — in at least 4 of 5 tries.
 
 **Why this target:**
@@ -71,8 +72,9 @@ natural variation. Unlike criterion 1, there's no reason to allow slack here.
 
 ## 4. Something about the fit card
 
-Given the same item run through create_fit_card 5 separate times, the exact
-price of the item appears as a number in the caption text in 5 of 5 tries.
+Given the same item run through create_fit_card 5 separate times, the item's
+price appears in the caption text, written as a dollar amount (for example
+"$38" for a listing priced 38.0), in 5 of 5 tries.
 
 **Why this target:**
 
