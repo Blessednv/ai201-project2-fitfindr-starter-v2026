@@ -20,6 +20,8 @@ That last line is what your loop branches on. "Returns a list" earns nothing —
 the description has to say what is *in* the list.
 """
 
+import re
+
 import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
@@ -79,7 +81,54 @@ def search_listings(
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
     # TODO: replace this with your implementation
-    return []
+    # Implementation (TODO above kept for reference):
+    listings = load_listings()
+
+    # Price filter (inclusive).
+    if max_price is not None:
+        listings = [l for l in listings if l["price"] <= max_price]
+
+    # Size filter: whole-string match, or an exact match on one token of the
+    # listing size ("M" matches "S/M" but not "XL" or "US 9").
+    if size is not None and size.strip():
+        wanted = size.strip().lower()
+        listings = [l for l in listings if _size_matches(wanted, l["size"])]
+
+    # Score by keyword overlap; title hits count double.
+    words = {w for w in _tokenize(description) if len(w) >= 3}
+    scored = []
+    for listing in listings:
+        title_words = set(_tokenize(listing["title"]))
+        other_words = set(
+            _tokenize(
+                " ".join(
+                    [listing["description"], listing["category"]]
+                    + listing["style_tags"]
+                    + listing["colors"]
+                )
+            )
+        )
+        score = 2 * len(words & title_words) + len(words & (other_words - title_words))
+        if score > 0:
+            scored.append((score, listing))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [listing for _, listing in scored[: config.SEARCH_RESULT_LIMIT]]
+
+
+def _tokenize(text: str) -> list[str]:
+    """Lowercase text split into words, ignoring punctuation."""
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def _size_matches(wanted: str, listing_size: str) -> bool:
+    """True if `wanted` (lowercase) matches the listing size as a whole or as
+    one token, splitting on spaces/slashes and ignoring parentheses."""
+    listing_size = listing_size.lower()
+    if wanted == listing_size:
+        return True
+    tokens = re.split(r"[\s/]+", listing_size.replace("(", " ").replace(")", " "))
+    return wanted in [t for t in tokens if t]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -113,7 +162,45 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
     # TODO: replace this with your implementation
-    return ""
+    # Implementation (TODO above kept for reference):
+    item_text = (
+        f"{new_item.get('title', 'Unknown item')} "
+        f"(category: {new_item.get('category', 'n/a')}, "
+        f"colors: {', '.join(new_item.get('colors', [])) or 'n/a'}, "
+        f"style: {', '.join(new_item.get('style_tags', [])) or 'n/a'}, "
+        f"size: {new_item.get('size', 'n/a')})"
+    )
+    owned = (wardrobe or {}).get("items") or []
+
+    if not owned:
+        system = "You are a friendly thrift-fashion stylist. Be concise and specific."
+        prompt = (
+            f"I'm thinking of buying this thrifted item: {item_text}.\n"
+            "I haven't told you what else I own, so give general styling advice: "
+            "one or two outfit ideas using common wardrobe basics, in 3-5 sentences."
+        )
+    else:
+        wardrobe_lines = "\n".join(
+            f"- {i.get('name', 'item')} ({i.get('category', 'n/a')}, "
+            f"{', '.join(i.get('colors', []))})"
+            for i in owned
+        )
+        system = (
+            "You are a friendly thrift-fashion stylist. Only suggest pieces from "
+            "the user's wardrobe list, and name them exactly. Be concise."
+        )
+        prompt = (
+            f"I'm thinking of buying this thrifted item: {item_text}.\n\n"
+            f"Here is what I already own:\n{wardrobe_lines}\n\n"
+            "Suggest one or two outfits that combine the new item with pieces "
+            "I own, naming those pieces."
+        )
+
+    result = generate(prompt, system=system)
+    if not result.strip():
+        # Never return "" — the loop depends on a non-empty string.
+        return "Try pairing this piece with simple basics like jeans and plain sneakers."
+    return result
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -153,4 +240,35 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
     # TODO: replace this with your implementation
-    return ""
+    # Implementation (TODO above kept for reference):
+    if not outfit or not outfit.strip():
+        return (
+            "No outfit was provided, so I couldn't write a fit card. "
+            "Get an outfit suggestion first, then try again."
+        )
+
+    title = new_item.get("title", "this piece")
+    price = new_item.get("price")
+    price_text = f"${price:g}" if isinstance(price, (int, float)) else "an unknown price"
+    platform = new_item.get("platform", "a thrift app")
+
+    system = (
+        "You write short, authentic social media captions for thrift finds. "
+        "Sound like a real person posting, not a product description."
+    )
+    prompt = (
+        f"Write a 2-4 sentence caption about this thrift find.\n"
+        f"Item: {title}\n"
+        f"Price: {price_text}\n"
+        f"Platform: {platform}\n"
+        f"Outfit idea: {outfit}\n\n"
+        "Mention the item, the price and the platform once each. Be specific "
+        "about the vibe. Write it as the buyer who just thrifted this piece "
+        "(e.g. 'found', 'scored', 'thrifted'), not as a seller listing it for "
+        "sale. Return only the caption."
+    )
+
+    result = generate(prompt, system=system)
+    if not result.strip():
+        return f"Thrifted {title} for {price_text} on {platform}. Obsessed."
+    return result
