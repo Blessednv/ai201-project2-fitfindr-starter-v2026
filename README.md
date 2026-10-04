@@ -16,6 +16,10 @@
 > All three tools are stubs, so that last command will do nothing useful yet.
 > That's the starting position.
 >
+> **Update (Unit 3):** this is no longer true. All three tools are built and
+> wired into the planning loop in `agent.py`, so that last command now runs the
+> full agent. See Sample Run below.
+>
 > **The rest of this file is your submission.** Fill it in as you go.
 
 ---
@@ -40,6 +44,8 @@
 ## What This Does
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
+
+FitFindr is a thrift-shopping assistant. You type what you're looking for in plain language, like "vintage graphic tee under $30, size M," and it searches a small set of secondhand listings that match your words, size and budget. It picks the best match, suggests one or two outfits that combine it with clothes you already own (or general styling advice if you haven't saved any), and writes a short social-media-style caption about the find. If nothing matches, it stops early and tells you what to change, such as a broader description, a different size or a higher price.
 
 
 
@@ -75,7 +81,7 @@
 
 - **What it does:** It writes a short, two-to-four sentence social media caption that mentions the item, its price, its platform, and the outfit's vibe.
 - **Inputs:** `outfit` (str) — the outfit suggestion string from `suggest_outfit()`. `new_item` (dict) — the listing dict for the item, with fields like title, price, and platform.
-- **Returns:** A string (str) containing the generated caption.
+- **Returns:** A string (str) containing the generated caption: two to four sentences, written as the buyer who just thrifted the piece, that mention the item, its price and its platform once each and say something specific about the vibe.
 - **When it has nothing:** If the outfit string is completely empty or just blank spaces, it returns a descriptive message instead of crashing.
 
 ---
@@ -93,7 +99,7 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:** If search_listings returns an empty list, put a message in the session saying "No listings matched — try a different description, size, or price," and stop. Otherwise, take the first result and go to suggest_outfit.
+**Branch rule:** If search_listings returns an empty list, put a message in `session["error"]` that repeats what was searched and tells the user to try a more general description, a different size, or a higher price, then stop (leaving `fit_card` as `None`). Otherwise, take the first result and go to suggest_outfit.
 
 **Where it lives:** `agent.py::run_agent`
 
@@ -176,6 +182,20 @@ Just thrifted the ultimate pair of vintage Levi's 501 jeans in the dreamiest med
 
 Note: I ran `create_fit_card` three times with the cache off (`AI201_CACHE=0`) and got three different captions, so the output varies. With the cache on, the same prompt returns the same saved caption.
 
+The three runs, pasted from my terminal:
+
+```
+$ AI201_CACHE=0 python -c "from tools import create_fit_card; from utils.data_loader import load_listings; item = load_listings()[0]; [print(i+1, create_fit_card('jeans and white sneakers', item), '\n') for i in range(3)]"
+
+1 Finally scored the holy grail vintage Levi's 501 jeans in the absolute best medium wash on Depop for just $38. They’ve got that perfectly broken-in 90s feel that you literally cannot fake. Can’t wait to live in these with my beat-up white sneakers all fall. 
+
+2 Just scored these vintage Levi's 501 jeans on Depop for $38 and I am never taking them off. The medium wash has that 90s slouchy vibethat is impossible to fake. Can't wait to wear these with crisp white sneakers and a simple tee for the ultimate effortless look. 
+
+3 Just thrifted the dreamiest pair of vintage Levi's 501 jeans in the absolute best medium wash. Scored them on Depop for just $38, andhonestly, they have that perfectly worn-in, effortless 90s vibe. Can't wait to live in these with crisp white sneakers all season. 
+```
+
+The missing spaces in "vibethat" and "andhonestly" are in the text the model returned. `create_fit_card` only trims the ends of the reply and doesn't change the words.
+
 ---
 
 ## How I Used AI
@@ -187,17 +207,23 @@ Note: I ran `create_fit_card` three times with the cache off (`AI201_CACHE=0`) a
      "I gave Claude my search_listings spec. It returned None on no match
      instead of an empty list, so I changed it" is the level we want. -->
 
-**Moment 1**
+**Moment 1 — size matching in `search_listings`**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked the AI to help me build the `search_listings` filter, especially how to handle sizes like "S/M" and "US 9". My Tool Inventory spec already said to split the listing size on spaces and slashes and match an exact piece, because the starter warned that a plain substring test like `"s" in "us 9"` would return shoes for a small top.
+- *What came back:* It implemented that rule. Before coding, it read the real sizes in `listings.json` and found two cases my rule missed: sizes with brackets, like "XL (fits oversized)", and sizes like "US 9" that split into two pieces and could never match a search for "US 9".
+- *What I changed:* I agreed to two additions. The code now ignores brackets, and a size can also match the whole listing size, so "US 9" finds "US 9". I tested "S" (no shoes, no XL), "US 9" (only the sneakers) and an impossible search (returns `[]`), then updated my Tool Inventory line to match the code.
 
-**Moment 2**
+**Moment 2 — the fit card sounded like a seller**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked the AI to write the caption in `create_fit_card` from the thrifted item's details, mentioning the item, price and platform.
+- *What came back:* Captions that read like a seller's listing, for example "Now live on my depop!". The prompt had a price and a platform but didn't say who was speaking, and the app is for someone who just bought the item.
+- *What I changed:* I added a line to the prompt in `tools.py`: write it as the buyer who just thrifted the piece (using words like "found", "scored", "thrifted"), not as a seller listing it for sale. The new caption said "Just thrifted..." and "I can't believe I scored these for only $38 on depop", and I replaced the old caption in my Sample Run.
+
+**Moment 3 — four identical captions**
+
+- *What I asked for:* I asked the AI to build `create_fit_card`, then ran the same command four times to check that the captions varied, as the brief says to.
+- *What came back:* All four captions were word-for-word identical. The AI checked `config.py` and explained that `TEMPERATURE` was already 0.9, so the temperature wasn't the cause. The cache was: the first answer was saved, and every later run with the same prompt got that saved answer back without calling the model.
+- *What I changed:* I changed no code. I ran the same command with the cache turned off (`AI201_CACHE=0`) and got three different captions, which confirmed the tool works and the repeats came from the cache. I also decided to paste only one caption into the README, since four identical ones would have looked like a bug.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
