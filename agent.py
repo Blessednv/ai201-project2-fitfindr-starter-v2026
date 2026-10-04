@@ -13,6 +13,8 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import re
+
 import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
@@ -45,6 +47,64 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
     }
+
+
+# ── helpers for the loop ──────────────────────────────────────────────────────
+
+_FILLER_WORDS = {
+    "looking", "for", "a", "an", "the", "i", "want", "need", "find", "me",
+    "show", "please", "under", "below", "size", "in", "my", "some",
+}
+
+
+def _parse_query(query: str) -> dict:
+    """
+    Pull a description, a size and a max_price out of plain text with regex.
+
+    "vintage graphic tee under $30, size M"
+        -> {"description": "vintage graphic tee", "size": "M", "max_price": 30.0}
+    A part that isn't in the query comes back as None.
+    """
+    text = query.strip()
+
+    max_price = None
+    price_match = re.search(
+        r"(?:under|below|less than|max|up to)\s*\$?\s*(\d+(?:\.\d+)?)"
+        r"|\$\s*(\d+(?:\.\d+)?)",
+        text,
+        re.I,
+    )
+    if price_match:
+        max_price = float(price_match.group(1) or price_match.group(2))
+        text = text.replace(price_match.group(0), " ")
+
+    size = None
+    size_match = re.search(
+        r"\bsize\s+(xxxl|xxl|xl|xxs|xs|s|m|l|us\s*\d+(?:\.\d+)?|w\d+)\b",
+        text,
+        re.I,
+    )
+    if size_match:
+        size = re.sub(r"\s+", " ", size_match.group(1)).upper()
+        text = text.replace(size_match.group(0), " ")
+
+    words = re.findall(r"[A-Za-z0-9']+", text)
+    description = " ".join(w for w in words if w.lower() not in _FILLER_WORDS)
+    return {"description": description, "size": size, "max_price": max_price}
+
+
+def _no_results_message(parsed: dict) -> str:
+    """Say what was searched for and what the user could change."""
+    tried = [f"'{parsed['description']}'"]
+    if parsed["size"]:
+        tried.append(f"size {parsed['size']}")
+    if parsed["max_price"] is not None:
+        tried.append(f"under ${parsed['max_price']:g}")
+    return (
+        f"Nothing matched {', '.join(tried)}. Try a more general description "
+        f"(for example 'tee' instead of a very specific style), a different "
+        f"size, or a higher price limit."
+    )
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
@@ -108,8 +168,47 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     session = new_session(query, wardrobe)
 
     # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
-    return session
+    # (The two stub lines were removed; the loop is below.)
+    #
+    # The loop looks at the session each time round and does the next thing
+    # that is still missing. Every result goes into the session and is read
+    # back out of it — values never pass straight from one call to the next.
+    count = 0
+    while True:
+        count += 1
+        trace.check_iterations(count)
+
+        if not session["parsed"]:
+            # Step 3: parse the query.
+            session["parsed"] = _parse_query(session["query"])
+
+        elif session["selected_item"] is None:
+            # Step 4: search. THIS IS THE BRANCH.
+            parsed = session["parsed"]
+            session["search_results"] = search_listings(
+                parsed["description"], parsed["size"], parsed["max_price"]
+            )
+            if not session["search_results"]:
+                session["error"] = _no_results_message(parsed)
+                return session
+            # Step 5: take the first result.
+            session["selected_item"] = session["search_results"][0]
+
+        elif session["outfit_suggestion"] is None:
+            # Step 6: outfit, from the item and wardrobe stored in the session.
+            session["outfit_suggestion"] = suggest_outfit(
+                session["selected_item"], session["wardrobe"]
+            )
+
+        elif session["fit_card"] is None:
+            # Step 7: fit card, from the outfit and item stored in the session.
+            session["fit_card"] = create_fit_card(
+                session["outfit_suggestion"], session["selected_item"]
+            )
+
+        else:
+            # Step 8: everything is filled in.
+            return session
 
 
 # ── running it directly ───────────────────────────────────────────────────────
