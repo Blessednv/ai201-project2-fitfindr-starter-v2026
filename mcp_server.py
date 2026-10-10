@@ -100,5 +100,27 @@ mcp = FastMCP("fitfindr", log_level="WARNING")
 # wrong is the most common reason a call is rejected.
 
 
+# ── Milestone 1: the real registration (template above left in place) ─────────
+
+@mcp.tool()
+def search_listings(
+    description: str,
+    size: str | None = None,
+    max_price: float | None = None,
+) -> list[dict]:
+    """
+    Search a secondhand clothing catalog for items matching a description,
+    optionally narrowed by size and a price limit. Takes `description` (keywords
+    as text, e.g. "vintage graphic tee"), an optional `size` (text, e.g. "M" or
+    "US 9"), and an optional `max_price` (a number in whole US dollars,
+    inclusive; omit it for no limit). A size matches the listing's whole size or
+    one piece of it, so "M" matches "S/M" but not "XL" or "US 9". Returns a list
+    of listings, best keyword match first, each with id, title, description,
+    category, style_tags, size, condition, price, colors, brand and platform.
+    If nothing matches, returns an empty list [].
+    """
+    return _search_listings_impl(description, size, max_price)
+
+
 if __name__ == "__main__":
     mcp.run()
