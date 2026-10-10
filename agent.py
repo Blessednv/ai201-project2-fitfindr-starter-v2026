@@ -47,6 +47,7 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
+        "notice": None,              # a note to show beside a successful result
     }
 
 
@@ -175,47 +176,116 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     # that is still missing. Every result goes into the session and is read
     # back out of it — values never pass straight from one call to the next.
     count = 0
-    while True:
-        count += 1
-        trace.check_iterations(count)
+    try:
+        while True:
+            count += 1
+            trace.check_iterations(count)
 
-        if not session["parsed"]:
-            # Step 3: parse the query.
-            session["parsed"] = _parse_query(session["query"])
+            if not session["parsed"]:
+                # Step 3: parse the query.
+                session["parsed"] = _parse_query(session["query"])
+                p = session["parsed"]
+                trace.step(
+                    "parse_query",
+                    inputs=repr(session["query"]),
+                    returned=(
+                        f"description={p['description']!r}, size={p['size']!r}, "
+                        f"max_price={p['max_price']!r}"
+                    ),
+                )
 
-        elif session["selected_item"] is None:
-            # Step 4: search. THIS IS THE BRANCH.
-            parsed = session["parsed"]
-            # Before Unit 4 (direct call, kept for reference):
-            # session["search_results"] = search_listings(
-            #     parsed["description"], parsed["size"], parsed["max_price"]
-            # )
-            session["search_results"] = call_tool("search_listings", {
-                "description": parsed["description"],
-                "size": parsed["size"],
-                "max_price": parsed["max_price"],
-            })
-            if not session["search_results"]:
-                session["error"] = _no_results_message(parsed)
+            elif session["selected_item"] is None:
+                # Step 4: search. THIS IS THE BRANCH.
+                parsed = session["parsed"]
+                # Before Unit 4 (direct call, kept for reference):
+                # session["search_results"] = search_listings(
+                #     parsed["description"], parsed["size"], parsed["max_price"]
+                # )
+                session["search_results"] = call_tool("search_listings", {
+                    "description": parsed["description"],
+                    "size": parsed["size"],
+                    "max_price": parsed["max_price"],
+                })
+                trace.step(
+                    "search_listings (via MCP)",
+                    inputs=(
+                        f"description={parsed['description']!r}, size={parsed['size']!r}, "
+                        f"max_price={parsed['max_price']!r}"
+                    ),
+                    returned=session["search_results"],
+                    note=(
+                        "branch: empty, stopping"
+                        if not session["search_results"]
+                        else "branch: found, continuing"
+                    ),
+                )
+                if not session["search_results"]:
+                    session["error"] = _no_results_message(parsed)
+                    return session
+                # Step 5: take the first result.
+                session["selected_item"] = session["search_results"][0]
+                trace.step(
+                    "select_item",
+                    inputs=f"{len(session['search_results'])} results",
+                    returned=session["selected_item"],
+                    note="took the first result",
+                )
+
+            elif session["outfit_suggestion"] is None:
+                # Step 6: outfit, from the item and wardrobe stored in the session.
+                session["outfit_suggestion"] = suggest_outfit(
+                    session["selected_item"], session["wardrobe"]
+                )
+                # Unit 4: with nothing in the wardrobe the outfit is general advice,
+                # so say so — otherwise it reads as if it used the user's clothes.
+                if not (session["wardrobe"] or {}).get("items"):
+                    session["notice"] = (
+                        "Your wardrobe is empty, so these are general ideas rather "
+                        "than outfits built from your own clothes."
+                    )
+                trace.step(
+                    "suggest_outfit",
+                    inputs=(
+                        f"item={session['selected_item']['title']!r}, wardrobe items="
+                        f"{len((session['wardrobe'] or {}).get('items') or [])}"
+                    ),
+                    returned=session["outfit_suggestion"],
+                    note="empty wardrobe: general advice" if session["notice"] else "",
+                )
+
+            elif session["fit_card"] is None:
+                # Step 7: fit card, from the outfit and item stored in the session.
+                session["fit_card"] = create_fit_card(
+                    session["outfit_suggestion"], session["selected_item"]
+                )
+                trace.step(
+                    "create_fit_card",
+                    inputs=(
+                        f"item={session['selected_item']['title']!r}, "
+                        f"outfit={len(session['outfit_suggestion'])} chars"
+                    ),
+                    returned=session["fit_card"],
+                )
+
+            else:
+                # Step 8: everything is filled in.
                 return session
-            # Step 5: take the first result.
-            session["selected_item"] = session["search_results"][0]
-
-        elif session["outfit_suggestion"] is None:
-            # Step 6: outfit, from the item and wardrobe stored in the session.
-            session["outfit_suggestion"] = suggest_outfit(
-                session["selected_item"], session["wardrobe"]
-            )
-
-        elif session["fit_card"] is None:
-            # Step 7: fit card, from the outfit and item stored in the session.
-            session["fit_card"] = create_fit_card(
-                session["outfit_suggestion"], session["selected_item"]
-            )
-
-        else:
-            # Step 8: everything is filled in.
-            return session
+    except ModelUnavailable as exc:
+        # Unit 4: a bad key or an unreachable model ends the run with a message
+        # instead of a traceback. First line is for the user, second for the
+        # person running the app.
+        trace.step(
+            "model call failed",
+            inputs=type(exc).__name__,
+            note="stopping with a user message",
+        )
+        session["error"] = (
+            "FitFindr couldn't reach its AI model right now, so it can't write "
+            "outfit ideas. Please try again in a minute. If it keeps happening, "
+            "tell whoever runs this app.\n"
+            f"  (For the developer: {exc})"
+        )
+        return session
 
 
 # ── running it directly ───────────────────────────────────────────────────────
