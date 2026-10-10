@@ -306,15 +306,61 @@ that produced it:
 
 **Happy path**
 
-```
+Command: `python app.py ask 'vintage graphic tee under $30' --trace`
 
+```
+[1] parse_query
+      in:  'vintage graphic tee under $30'
+      out: description='vintage graphic tee', size=None, max_price=30.0
+[2] search_listings (via MCP)
+      in:  description='vintage graphic tee', size=None, max_price=30.0
+      out: 10 items: Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey, Y2K Baby Tee — Butterfly Print … +7 more
+      →    branch: found, continuing
+[3] select_item
+      in:  10 results
+      out: Graphic Tee — 2003 Tour Bootleg Style ($24.0, depop)
+      →    took the first result
+[4] suggest_outfit
+      in:  item='Graphic Tee — 2003 Tour Bootleg Style', wardrobe items=10
+      out: That graphic tee is a total find! Here are two ways to style it using your current wardrobe:  **Outfit 1 (Grun…
+[5] create_fit_card
+      in:  item='Graphic Tee — 2003 Tour Bootleg Style', outfit=598 chars
+      out: Just scored this insanely good 2003 tour bootleg tee on depop for $24 and I'm obsessed. The fade on it is comp…
 ```
 
 **Empty search**
 
-```
+Command: `python app.py ask 'designer ballgown size XXS under $5' --trace`
 
 ```
+[1] parse_query
+      in:  'designer ballgown size XXS under $5'
+      out: description='designer ballgown', size='XXS', max_price=5.0
+[2] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+      →    branch: empty, stopping
+```
+
+The run stops after two steps. `suggest_outfit` and `create_fit_card` never run, so the trace is visibly shorter than the happy path's five steps.
+
+**Failure modes triggered on purpose**
+
+I triggered each of the three failures myself and wrote down what the agent said.
+
+1. **Empty search** — `python app.py ask 'designer ballgown size XXS under $5'`. The loop stopped before `suggest_outfit` (0 model calls) and said:
+   > Nothing matched 'designer ballgown', size XXS, under $5. Try a more general description (for example 'tee' instead of a very specific style), a different size, or a higher price limit.
+
+   No handler needed: the message names what was searched and three things to change.
+
+2. **Empty wardrobe** — `python app.py ask 'vintage graphic tee under $30' --empty-wardrobe`. It did not crash and did not return an empty string; `suggest_outfit` returned general styling advice. The problem was that nothing told the user the advice wasn't built from their clothes, so I added a handler: `run_agent()` sets `session["notice"]` when the wardrobe has no items, and `app.py` prints it as a `Note:` line after the fit card:
+   > Your wardrobe is empty, so these are general ideas rather than outfits built from your own clothes.
+
+3. **Model unavailable** — I changed one character of the key in `.env`, ran a query with the cache off (`AI201_CACHE=0`), then restored the key. Before my handler, `app.py`'s catch-all printed a single line starting with `ModelUnavailable:`, which only a developer could act on. I added a `try/except ModelUnavailable` in `run_agent()`. It now says:
+   > FitFindr couldn't reach its AI model right now, so it can't write outfit ideas. Please try again in a minute. If it keeps happening, tell whoever runs this app.
+   > (For the developer: The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.)
+
+   It ended cleanly: no hang, no stack trace.
 
 **On the MCP move:** <!-- what changed in your code, and whether anything
 behaved differently afterwards. If the rewire didn't work, say exactly where it
