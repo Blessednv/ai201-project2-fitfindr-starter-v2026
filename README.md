@@ -347,13 +347,25 @@ Layer the new **Denim Jacket — Light Wash, Cropped** over the white tank and d
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | A matching query completes all three tools and returns a fit card | 4 of 5 | MET | 5 of 5 tries ran the search, the outfit and the fit card (fit cards were 232 to 297 characters). 5 is above the target of 4. |
+| 2 | An impossible query stops before suggest_outfit, uses 0 model calls, and names what to change | 5 of 5 | MET | 5 of 5 tries stopped after step 2 with the "Nothing matched..." message. I re-measured it separately: 0 model calls and 2 trace steps in each of 5 runs. |
+| 3 | The id of the selected item matches the id of the item passed to suggest_outfit | 5 of 5 | MET | The run log's trace compared titles and printed both from the same variable, so on its own it was weak evidence. A separate check intercepted the real argument of suggest_outfit: the ids matched in 15 of 15 runs (3 queries, 5 tries each). |
+| 4 | The fit card mentions the item's price as a dollar amount | 5 of 5 | MET | "$24" appeared in all 5 fit cards, and a correct price appeared in all 25 fit cards in the run, across 3 different items. |
+| 5 | Empty and non-empty wardrobe give two results of at least 50 characters, with no exception, not identical | 5 of 5 pairs | MET | In all 5 pairs, both outfits were over 300 characters, nothing crashed, and none were identical. Because "not identical" cannot fail, I also checked that the empty-wardrobe outfits name 0 to 1 of the user's 10 wardrobe items and the full ones name 3 to 7. I revised this criterion for that reason (see below); the original line is kept in `criteria.md`. |
 
 **Diagnoses**
+
+**No criterion was missed,** so there is no miss to trace to a tool, the loop's branch, the session or the model's output. What follows is which of my targets were too low, and what I would tighten.
+
+- **Criterion 1 (target 4 of 5).** It passed 5 of 5, so the allowed slack was never used. It also used one query written in the listing's own words, so the weakness named in its own "why" (keyword matching misses synonyms) was never exercised. **Tighter target:** 5 of 5 on each of 5 different matching queries, including different phrasings of the same item.
+- **Criterion 4 (target 5 of 5).** Too easy: `create_fit_card` writes "Price: $24" into the prompt, so the model only copies a fact it was given. **Tighter target:** also 0 of 5 fit cards using selling language (such as "listed", "now live", "my closet").
+- **Criterion 5.** The "not identical" clause could not fail, because the model's wording varies at temperature 0.9, so it never tested whether the empty-wardrobe branch does anything different. I revised it. The original line is still in `criteria.md`, with the new line and my reason underneath. The revised version counts how many of the user's wardrobe items each outfit names (at most 1 for the empty wardrobe, at least 3 for the full one). I chose those numbers after seeing the before-run results, which I say in the note there. The target is still 5 of 5, and the verdict is MET under both the original and the revised wording.
+
+**A problem my criteria did not measure.** In 5 of the 25 fit cards, the caption sounds like a seller, not a buyer, for example "Now live on my Poshmark closet if anyone wants to grab it". **Place:** the model's output, from `tools.py::create_fit_card`. **Likely mechanism:** the prompt asks for the buyer's voice, but it also tells the model to mention the platform, and the model sometimes turns that into listing language. This is one problem in one tool, not five separate ones. It is not a miss on any of my five criteria, which is why it appears here and not in the verdict table.
+
+**A weak spot in my own evidence.** For criterion 3, the trace prints the selected item and the item passed to `suggest_outfit` from the same variable, so it could never have shown a mismatch. I added a separate check that intercepts what `suggest_outfit` really receives (15 of 15 ids matched). I also re-measured criterion 2's "0 model calls" per try, because the run log did not record it.
+
+**How I checked my verdicts.** For each criterion I argued the opposite verdict as strongly as I could against my own results. None of the arguments changed a verdict. Two of them (criteria 3 and 5) showed that my evidence or my wording was weaker than it looked, which is what the extra checks and the criterion 5 revision above came from.
 
 
 
