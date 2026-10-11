@@ -245,17 +245,84 @@ The missing spaces in "vibethat" and "andhonestly" are in the text the model ret
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item matches the item passed to suggest_outfit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card mentions the item's price | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Empty vs non-empty wardrobe, 5 pairs | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
+Run with `python run_eval.py --label before` (cache off, 5 tries per scenario). The full output, every try, is in `results/run_2026-10-10_2001_before.md`. Criterion 5 ran as two scenarios (empty wardrobe and full wardrobe, same query), so its row compares them pair by pair. Criterion 3 is checked by item title, because the trace prints titles, not ids.
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
 
+All of it is **Try 1** of each scenario, copied from `results/run_2026-10-10_2001_before.md` (written by `run_eval.py::main`).
+
+**Criterion 1** — query `vintage graphic tee under $30`. Fit card written by `tools.py::create_fit_card`, run by `agent.py::run_agent`:
+
+```
+- stopped early: no
+- selected_item: Graphic Tee — 2003 Tour Bootleg Style ($24.0, depop)
+- search_results: 10
+
+just thrifted the ultimate 2003 tour bootleg style graphic tee for $24 and I'm obsessed with this faded wash. honestly can't wait to pair it with baggy denim and beat-up combat boots for that perfect messy indie sleaze look. posting it on depop soon if I can somehow bring myself to part with it 🥲
 ```
 
+**Criterion 2** — query `designer ballgown size XXS under $5`. Message from `agent.py::_no_results_message`, trace from `agent.py::run_agent`:
+
+```
+- stopped early: yes — Nothing matched 'designer ballgown', size XXS, under $5. Try a more general description (for example 'tee' instead of a very specific style), a different size, or a higher price limit.
+- selected_item: (none)
+- search_results: 0
+
+[1] parse_query
+      in:  'designer ballgown size XXS under $5'
+      out: description='designer ballgown', size='XXS', max_price=5.0
+[2] search_listings (via MCP)
+      in:  description='designer ballgown', size='XXS', max_price=5.0
+      out: [] (empty)
+      →    branch: empty, stopping
+```
+
+**Criterion 3** — query `90s track jacket in size M`. Trace steps 3 and 4 from `agent.py::run_agent` (`trace.step` calls):
+
+```
+[3] select_item
+      in:  4 results
+      out: 90s Track Jacket — Navy/White Stripe ($45.0, poshmark)
+      →    took the first result
+[4] suggest_outfit
+      in:  item='90s Track Jacket — Navy/White Stripe', wardrobe items=10
+      out: That 90s Track Jacket is a great find! Here are two sporty, vintage-inspired outfits using pieces you already …
+```
+
+**Criterion 4** — query `vintage graphic tee under $30`. Fit card from `tools.py::create_fit_card`:
+
+```
+Just scored the absolute sickest 2003 tour bootleg tee for $24 on depop and the fade on it is unreal. It’s got that perfect lived-in, crusty vintage grunge vibe that usually takes years to find naturally. Can't wait to style this with baggy denim and combat boots.
+```
+
+**Criterion 5** — query `denim jacket under $50`, same item, two wardrobes. Outfits from `tools.py::suggest_outfit`.
+
+Empty wardrobe (`wardrobe items=0`):
+
+```
+Hey there! That light wash cropped denim jacket is a timeless streetwear staple. 
+
+Try throwing it over a basic white tee, high-waisted black straight-leg jeans, and white sneakers for an effortless, classic look. Alternatively, pair it with a cozy ribbed knit midi dress and chunky boots to mix feminine and edgy vibes. You're going to get so much wear out of this piece!
+```
+
+Full wardrobe (`wardrobe items=10`):
+
+```
+Do it! That light wash denim jacket is super versatile. 
+
+Here is a great outfit using your new piece:
+* **White ribbed tank top**
+* **Baggy straight-leg jeans, dark wash**
+* **Chunky white sneakers**
+
+Layer the new **Denim Jacket — Light Wash, Cropped** over the white tank and dark jeans with your chunky white sneakers for a cool, double-denim look!
 ```
 
 ---
