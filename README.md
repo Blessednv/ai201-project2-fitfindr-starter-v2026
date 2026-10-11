@@ -459,19 +459,42 @@ full. -->
 
 **What I changed:**
 
+I rewrote one prompt: the instruction at the end of the prompt in `tools.py::create_fit_card`. The old version said to write as the buyer and "not as a seller listing it for sale". The new version keeps the buyer-voice instruction and adds three things: mention the platform only as where I bought it (for example "found it on Depop"); never say the item is listed, posted, for sale, or live on my own page or closet; never say I plan to resell it. The facts sent to the model (item, price, platform, outfit idea) did not change. This is the only code change in this milestone, and the old prompt text is kept as a comment above the new one.
+
 **Which failure it was meant to fix:**
+
+The seller-voice problem from my diagnosis. In the before run, 5 of 25 fit cards sounded like a seller instead of a buyer, for example "Now live on my Poshmark closet if anyone wants to grab it" and "Listed it over on my Poshmark if anyone else wants to steal my look". My likely mechanism was that the old prompt told the model to mention the platform, and the model sometimes turned that into listing language. None of my five criteria measured this, so I counted it with a fixed list of phrases (listed, listing, now live, my closet, my poshmark, my depop, posting it, post it, list this, for sale, resell, grab it, steal my look), fixed before the after run so it could not be tuned to the results. I also read each flagged caption: 2 of the 7 keyword hits ("my closet" meaning the buyer's own wardrobe) were not seller voice.
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected item matches the item passed to suggest_outfit | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card mentions the item's price | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Empty vs non-empty wardrobe, 5 pairs | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
+Run with `python run_eval.py --label after` (cache off, 5 tries per scenario). The full output is in `results/run_2026-10-10_2225_after.md`.
+
+**Before and after, side by side:**
+
+| Measure | Before | After |
+|---|---|---|
+| Seller-sounding fit cards, keyword list | 7 of 25 | 0 of 25 |
+| Seller-sounding fit cards, my reading | 5 of 25 | 0 of 25 |
+| Fit cards with the correct price | 25 of 25 | 25 of 25 |
+| Captions with "found it on [platform]" style wording | 1 of 25 | 6 of 25 |
+| Average fit card length | 252 characters | 239 characters |
+| Criteria met | 5 of 5 | 5 of 5 |
 
 **Did it help, and how do I know:**
+
+**Yes, on the problem it targeted, and nothing broke.** Seller-sounding fit cards went from 5 of 25 (7 by keyword) to 0 of 25, measured with the same fixed phrase list before and after, and I read all 25 after captions myself. All five criteria still passed 5 of 5, and the correct price is still in all 25 captions. If the old rate of 5 in 25 had stayed the same, getting 0 of 25 by chance would be about a 0.4% event, assuming the captions are independent.
+
+**Limits:** this is one after-run of 25 captions at temperature 0.9, so some of the drop could be luck. I would call it "helped", not "fixed".
+
+**Side effects:** the captions became more formulaic. The phrase "found it on [platform]" appeared in 6 captions instead of 1, so the model is copying the example I put in the prompt. One caption also misspelled the platform ("Pshmark"). With a single instance at temperature 0.9, I can't say my change caused it. A next step would be to remove the example from the prompt and re-measure.
 
 <!-- If it made things worse, say that. Honestly reported, that earns full
      credit and is more interesting than one that worked. -->
