@@ -30,10 +30,37 @@ SCENARIOS = [
     },
     {
         # A user with nothing saved. One of unit 4's three failure modes.
+        # Also the empty half of criterion 5's pair (same query as the
+        # "outfit with a full wardrobe" scenario below) — was "criterion": None.
         "name": "empty wardrobe",
         "query": "denim jacket under $50",
         "wardrobe": "empty",
-        "criterion": None,
+        "criterion": 5,
+    },
+    {
+        # Criterion 3 — state. Any normal query works; what matters is that the
+        # item select_item picks is the same one suggest_outfit receives
+        # (read both steps in the trace).
+        "name": "selected item is the one passed on",
+        "query": "90s track jacket in size M",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        # Criterion 4 — the fit card's price. Same query as criterion 1, so
+        # every try uses the same item ($24.0), and the caption should say "$24".
+        "name": "fit card mentions the price",
+        "query": "vintage graphic tee under $30",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        # Criterion 5 — the full-wardrobe half of the pair. The empty half is
+        # the "empty wardrobe" scenario above, same query.
+        "name": "outfit with a full wardrobe",
+        "query": "denim jacket under $50",
+        "wardrobe": "example",
+        "criterion": 5,
     },
     # TODO: add what your criteria 3, 4 and 5 need.
     #
