@@ -262,10 +262,18 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
         f"Price: {price_text}\n"
         f"Platform: {platform}\n"
         f"Outfit idea: {outfit}\n\n"
+        # Before Unit 4 Milestone 5 (kept for reference). In the before-run, 5 of
+        # 25 captions used seller language, e.g. "Now live on my Poshmark closet":
+        #   "Mention the item, the price and the platform once each. Be specific "
+        #   "about the vibe. Write it as the buyer who just thrifted this piece "
+        #   "(e.g. 'found', 'scored', 'thrifted'), not as a seller listing it for "
+        #   "sale. Return only the caption."
         "Mention the item, the price and the platform once each. Be specific "
         "about the vibe. Write it as the buyer who just thrifted this piece "
-        "(e.g. 'found', 'scored', 'thrifted'), not as a seller listing it for "
-        "sale. Return only the caption."
+        "(e.g. 'found', 'scored', 'thrifted'). Mention the platform only as "
+        "where you bought it (e.g. 'found it on Depop'). Never say the item is "
+        "listed, posted, for sale, or live on your own page or closet, and "
+        "never say you plan to resell it. Return only the caption."
     )
 
     result = generate(prompt, system=system)
