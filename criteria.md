@@ -108,6 +108,27 @@ empty-wardrobe branch isn't doing anything different. 5 of 5 because this is
 just one `if` statement being wired up correctly, which should be reliable
 every time.
 
+> **Revised in unit 4:** In 5 of 5 pairs, the empty-wardrobe outfit names at
+> most 1 of the user's 10 wardrobe items, and the full-wardrobe outfit names at
+> least 3 of them, with both results at least 50 characters long and no
+> exception raised.
+>
+> **Why revised:** The original line stays above, unchanged. Its "not
+> identical" clause could not fail: the model's wording differs on every run
+> (temperature 0.9), so two outfits would be non-identical even if the
+> empty-wardrobe branch did nothing at all. It measured the wrong thing, so it
+> never tested the thing it was written to catch. The new version counts how
+> many of the user's own wardrobe items each outfit names, which a broken
+> branch could not fake.
+>
+> **A note on how I chose the numbers:** I chose "at most 1" and "at least 3"
+> after seeing the before-run results (empty-wardrobe outfits named 0 to 1 of
+> the 10 items, full-wardrobe outfits named 3 to 7). I allow 1 for the empty
+> case because generic advice can name a common item such as white sneakers by
+> chance. The target is still 5 of 5; this is not a lowered target. The
+> original criterion was also met (5 of 5), so the verdict is MET under both
+> wordings.
+
 
 
 ---
