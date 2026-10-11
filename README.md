@@ -225,6 +225,18 @@ The missing spaces in "vibethat" and "andhonestly" are in the text the model ret
 - *What came back:* All four captions were word-for-word identical. The AI checked `config.py` and explained that `TEMPERATURE` was already 0.9, so the temperature wasn't the cause. The cache was: the first answer was saved, and every later run with the same prompt got that saved answer back without calling the model.
 - *What I changed:* I changed no code. I ran the same command with the cache turned off (`AI201_CACHE=0`) and got three different captions, which confirmed the tool works and the repeats came from the cache. I also decided to paste only one caption into the README, since four identical ones would have looked like a bug.
 
+**Moment 4 — my trace could not have caught a mismatch (Unit 4)**
+
+- *What I asked for:* For each of my five criteria, I asked the AI to argue the opposite verdict as strongly as it could, using my real results. All five were MET, and I wanted to know whether any verdict was resting on weak evidence.
+- *What came back:* For criterion 3 (the selected item is the one passed to `suggest_outfit`) it pointed out two problems. My trace printed both the selected item and the item passed on from the same variable, so it could never have shown a mismatch, and I had compared titles while the criterion says ids. For criterion 2 it noted that "0 model calls" was never recorded per try, only implied by a 2-step trace.
+- *What I changed:* I changed no agent code. The AI ran a temporary check that intercepts what `suggest_outfit` actually receives, with the model tools stubbed so it cost nothing: the ids matched in 15 of 15 runs (3 queries, 5 tries each). It also re-ran the impossible query 5 times and measured 0 model calls each time. My verdicts stayed MET, but I wrote the weak evidence and the extra checks into the Verdicts and Diagnoses section so the README says honestly what the run log alone did and did not prove.
+
+**Moment 5 — choosing the improvement, and what it cost (Unit 4)**
+
+- *What I asked for:* With nothing missed, I did not know what to improve. I asked the AI for options, and it listed four. A different piece of advice I had pasted in said to make "a tiny, safe tweak" because my agent was already flawless. The AI said that advice did not fit: the rubric wants a change tied to a failure in my diagnosis, and "safe" is not a reason. It recommended the one real failure we had seen, the seller voice in fit cards (5 of 25 captions, for example "Now live on my Poshmark closet").
+- *What came back:* It confirmed the exact lines in `create_fit_card` before changing anything, then rewrote the prompt instruction. Before the after run it fixed a phrase list so the count could not be tuned to the results. That list flagged 7 of 25 captions in the before run, but reading them, 2 were a buyer talking about their own closet, so the honest count was 5. After the change the same list flagged 0 of 25, and all five criteria still passed. It also warned me not to claim more than 25 captions can show.
+- *What I changed:* I changed only the prompt in `tools.py`. I reported both counts (7 and 5 before, 0 after), called it "helped" and not "fixed", and wrote down the side effects the AI found when it compared the two runs: "found it on [platform]" went from 1 caption to 6 (the model copied my prompt example) and one caption misspelled the platform as "Pshmark".
+
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
@@ -446,6 +458,13 @@ behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
 
+The rewire worked the first time.
+
+- **What changed in the code.** In `mcp_server.py` I registered `search_listings` as an MCP tool, with its name, a description written for an agent that cannot see my code (units, the size rule, the fields in a result, and that nothing found returns `[]`), and typed inputs (`description` str, `size` str or None, `max_price` float or None). It calls the real function in `tools.py` under an alias, so the tool does not call itself. In `agent.py::run_agent`, the direct call became `call_tool("search_listings", {...})` from `mcp_client.py`. The old direct call is kept as a comment above it, and the other two tools are still called directly.
+- **Did anything behave differently?** The results did not. I ran four searches both ways (10, 8, 5 and 0 results) and the lists were identical, including searches with no size and no price (`None` inputs) and the empty search, which still returns `[]`. A full query gave the same item and price as my Unit 3 sample run. The one difference is speed: each call starts and stops the server, so a search is a little slower.
+- **Where it shows.** The trace names the step `search_listings (via MCP)`.
+- **One thing I learned about the seam.** While testing, a stray line (`git push`) got typed into `mcp_server.py`, and every query then failed with `MCPError: ... unhandled errors in a TaskGroup`, because the server could not start (SyntaxError, line 127). Deleting the line fixed it. With the direct call, a broken tool file would have failed in a different way and in a different place; with MCP, the agent now depends on a separate file starting cleanly, which is worth knowing before putting more tools behind it.
+
 
 
 ---
@@ -508,6 +527,25 @@ Run with `python run_eval.py --label after` (cache off, 5 tries per scenario). T
 <!-- For each criterion still missed: what you'd do, and why you stopped where
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
+
+**No criterion is still missed.** All five were met 5 of 5 in both the before and the after run. That does not mean nothing is left. Here is what I would still do, and why I stopped.
+
+**Where my criteria were too easy or too narrow** (from my diagnosis):
+
+- **Criterion 1 (a matching query completes).** I tested one query written in the listing's own words, so the weakness named in its own reasoning (keyword matching misses synonyms, for example "band shirt" for "graphic tee") was never tested. *What I'd do:* run 5 different matching queries, including synonyms. I expect the synonym ones to fail, and the fix would be synonym handling in `search_listings`. *Why I stopped:* the unit allows one improvement, synonym handling is a bigger change to a tool that is now behind MCP, and I have no failing result yet to measure it against.
+- **Criterion 4 (price in the fit card).** Too easy: the price is written into the prompt, so the model only copies it. *What I'd do:* add "no selling language" as a second part of the target. After my change it was 0 of 25, but that is one run. *Why I stopped:* adding it would be a new criterion, not a revision of this one.
+
+**Problems my fix left or created:**
+
+- **The captions became more formulaic.** "Found it on [platform]" appeared in 6 of 25 captions after, against 1 before, because the model copies the example in my new prompt. One caption also misspelled the platform ("Pshmark"). *What I'd do:* remove the example from the prompt and re-measure. *Why I stopped:* I made one change as the unit requires, and one typo at temperature 0.9 is not enough to say my change caused it.
+- **Search ranking is noisy.** For "denim jacket under $50", results 2 and 3 were denim shorts and a track jacket; for "90s track jacket", a silk dress and a bomber appeared. The top result was right every time, and the loop only uses the first result, so it never caused a failure. *What I'd do:* rank by category and title match as well as keyword overlap. *Why I stopped:* it never broke a criterion. To be clear about why 5 of 5 still stands: none of my five criteria checks relevance below the first result. Criterion 3 (the track jacket scenario) only checks that the selected item is the one passed on, and criterion 1 only checks that the run completes with a fit card. The ranking is working as designed (keyword overlap, plus the size filter), and the top result was correct every time: for "90s track jacket in size M" the first result was the 90s Track Jacket, and the silk slip dress below it is there because it matches "90s" and size M. So this is a gap in what I measured, not a failure the run log hid.
+
+**Gaps in my testing and evidence:**
+
+- **Some of my best checks are not saved in the repo.** The check that compares the real item passed to `suggest_outfit` by id (15 of 15 matched), the per-try count of model calls for the empty search (0 each), and the seller-voice phrase counter were temporary scripts outside the project. The README reports their results, but a reader cannot re-run them. *What I'd do:* save them as a small test script. *Why I stopped:* time, and they were written after the run log.
+- **The run log did not record model calls per try,** so criterion 2's "0 model calls" originally rested on the 2-step trace.
+- **The model-unavailable handler was tested with one cause only** (a changed API key). A lost connection, a rate limit or a timeout were not triggered, so I do not know that their messages read as well.
+- **`trace.step()` always prints,** even without `--trace`, so a normal `ask` shows the step-by-step lines too. That is how `trace.py` from the starter is built, and changing it was outside the changes this unit allows.
 
 
 
